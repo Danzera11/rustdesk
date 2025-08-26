@@ -1,0 +1,42 @@
+name: Build Personalizado do RustDesk para Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+
+    - name: Instalar Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Configurar cache do Cargo
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Compilar o RustDesk
+      env:
+        RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
+        RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
+      run: cargo run --release
+
+    - name: Fazer upload do executável como artefato
+      uses: actions/upload-artifact@v3
+      with:
+        name: rustdesk-windows-personalizado
+        path: target/release/rustdesk.exe
