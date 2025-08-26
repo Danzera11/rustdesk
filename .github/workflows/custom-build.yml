@@ -24,11 +24,13 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Instalar vcpkg
+    - name: Instalar dependências do vcpkg (Opus)
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgDirectory: ${{ runner.temp }}/vcpkg
-        runVcpkgInstall: true
+        vcpkgGitCommitId: '8f7f44a735903b135e700015c86b89e2b2b13f89' # Commit estável
+        vcpkgJsonGlob: '**/vcpkg.json' # Adicionado para garantir que ele encontre as dependências
+        appendedCacheKey: ${{ hashFiles('**/vcpkg.json') }}
 
     - name: Instalar Rust
       uses: actions-rs/toolchain@v1
