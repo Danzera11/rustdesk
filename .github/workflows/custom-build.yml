@@ -3,6 +3,10 @@ name: Build Personalizado do RustDesk para Windows
 on:
   workflow_dispatch:
 
+env:
+  # Define o caminho do vcpkg para todos os passos do job
+  VCPKG_ROOT: ${{ runner.temp }}/vcpkg
+
 jobs:
   build:
     runs-on: windows-latest
@@ -24,12 +28,18 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Instalar dependências do vcpkg (Opus)
+    - name: Instalar e configurar vcpkg
       uses: lukka/run-vcpkg@v11
       with:
-        # Comando explícito para instalar o pacote 'opus' para a arquitetura Windows x64.
-        runVcpkgInstall: |
-          vcpkg install opus:x64-windows
+        # Instala o vcpkg no diretório que definimos em VCPKG_ROOT
+        vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+        # Especifica um commit estável do vcpkg para evitar surpresas
+        vcpkgGitCommitId: '8f7f44a735903b135e700015c86b89e2b2b13f89'
+
+    - name: Instalar dependências (opus e libyuv)
+      run: |
+        ${{ env.VCPKG_ROOT }}/vcpkg.exe install opus:x64-windows libyuv:x64-windows
+      shell: pwsh
 
     - name: Instalar Rust
       uses: actions-rs/toolchain@v1
