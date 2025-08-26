@@ -36,7 +36,7 @@ jobs:
       run: cargo run --release
 
     - name: Fazer upload do executável como artefato
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: rustdesk-windows-personalizado
         path: target/release/rustdesk.exe
