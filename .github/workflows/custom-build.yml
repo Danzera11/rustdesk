@@ -9,17 +9,12 @@ jobs:
 
     steps:
     - name: Checkout do código
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 
-    - name: Instalar Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-
     - name: Configurar cache do Cargo
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/bin/
@@ -29,11 +24,22 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+    - name: Instalar vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: ${{ runner.temp }}/vcpkg
+        runVcpkgInstall: true
+
+    - name: Instalar Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+
     - name: Compilar o RustDesk
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
-      run: cargo run --release
+      run: cargo build --release --verbose
 
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
