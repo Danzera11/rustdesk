@@ -24,12 +24,12 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Instalar dependências do vcpkg
+    - name: Instalar dependências do vcpkg (Opus)
       uses: lukka/run-vcpkg@v11
       with:
-        # Esta linha instrui o vcpkg a encontrar os arquivos vcpkg.json
-        # no repositório e instalar as dependências listadas (como 'opus').
-        vcpkgJsonGlob: '**/vcpkg.json'
+        # Comando explícito para instalar o pacote 'opus' para a arquitetura Windows x64.
+        runVcpkgInstall: |
+          vcpkg install opus:x64-windows
 
     - name: Instalar Rust
       uses: actions-rs/toolchain@v1
