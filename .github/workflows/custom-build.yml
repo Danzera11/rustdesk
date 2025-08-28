@@ -1,7 +1,7 @@
 name: Build Personalizado do RustDesk para Windows
 
 on:
-  workflow_dispatch: # Permite acionar a build manualmente
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,7 +11,6 @@ jobs:
     - name: Checkout do código-fonte
       uses: actions/checkout@v4
       with:
-        # 'recursive' é essencial para baixar os submódulos do RustDesk
         submodules: 'recursive'
 
     - name: Instalar Rust (toolchain stable)
@@ -33,24 +32,23 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    - name: Instalar LLVM (necessário para vcpkg e bindgen)
+    - name: Instalar LLVM (necessário para o ambiente de compilação)
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Instalar vcpkg e suas dependências
-      # O RustDesk usa seu próprio script para gerenciar o vcpkg
+    - name: Instalar dependências do vcpkg (Método Corrigido)
+      # Executa o script de bootstrap do vcpkg que já vem com o RustDesk.
+      # Usamos pwsh para consistência e combinamos os comandos.
       run: |
         cd vcpkg
-        ./bootstrap-vcpkg.bat
-      shell: cmd
+        ./bootstrap-vcpkg.bat -disableMetrics
+      shell: pwsh
 
     - name: Compilar o RustDesk com personalizações
-      # Passamos as variáveis de ambiente diretamente para o comando do cargo
-      # Isso garante que o compilador as utilize durante a build
       env:
-        # Seus segredos do GitHub para o servidor e a chave pública
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
+      shell: pwsh
 
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
