@@ -6,26 +6,20 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    # Define o diretório de trabalho padrão para todos os passos deste job.
-    # Isso garante que todos os comandos sejam executados dentro da pasta do nosso código.
-    defaults:
-      run:
-        working-directory: ./rustdesk-src
 
     steps:
-    # Passo 1: Criar um diretório e clonar o código para dentro dele
-    # Isso nos dá controle total sobre onde o código está.
-    - name: Clonar repositório e submódulos em um diretório específico
+    # Passo 1: Clonar o código para um diretório controlado.
+    # Este passo é executado no diretório padrão do runner.
+    - name: Clonar repositório e submódulos
       run: |
-        mkdir rustdesk-src
-        git clone --recurse-submodules https://github.com/${{ github.repository }} ./rustdesk-src
+        git clone --recurse-submodules https://github.com/${{ github.repository }} rustdesk-src
       shell: pwsh
 
     # Passo 2 (Diagnóstico ): Listar o conteúdo para verificar o clone
     - name: Verificar se a pasta vcpkg existe
       run: |
-        echo "Listando o conteúdo do diretório de trabalho:"
-        ls -R
+        echo "Listando o conteúdo do diretório clonado:"
+        ls -R ./rustdesk-src
       shell: pwsh
 
     # Passo 3: Instalar Rust
@@ -39,7 +33,6 @@ jobs:
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
       with:
-        # O path agora precisa refletir nosso diretório de trabalho
         path: |
           ~/.cargo/bin/
           ~/.cargo/registry/index/
@@ -56,7 +49,8 @@ jobs:
 
     # Passo 6: Instalar as dependências C++ via vcpkg
     - name: Instalar dependências do vcpkg
-      # Este passo agora será executado dentro de 'rustdesk-src' por causa do 'defaults'.
+      # Agora especificamos o diretório de trabalho explicitamente aqui.
+      working-directory: ./rustdesk-src
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
@@ -64,10 +58,11 @@ jobs:
 
     # Passo 7: Compilar o projeto Rust
     - name: Compilar o RustDesk com personalizações
+      # E aqui também.
+      working-directory: ./rustdesk-src
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
-      # Este passo também será executado dentro de 'rustdesk-src'.
       run: cargo build --release --verbose
       shell: pwsh
 
@@ -76,5 +71,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: rustdesk-windows-personalizado
-        # O caminho para o artefato agora precisa incluir nosso diretório.
         path: ./rustdesk-src/target/release/rustdesk.exe
