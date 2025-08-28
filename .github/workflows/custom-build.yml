@@ -8,18 +8,18 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # Passo 1: Clonar o código para um diretório controlado.
-    # Este passo é executado no diretório padrão do runner.
-    - name: Clonar repositório e submódulos
-      run: |
-        git clone --recurse-submodules https://github.com/${{ github.repository }} rustdesk-src
-      shell: pwsh
+    # Passo 1: Usar a ação de checkout padrão.
+    # Vamos voltar à forma mais simples e confiável, que cria o checkout no diretório raiz.
+    - name: Checkout do código-fonte com submódulos
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
 
-    # Passo 2 (Diagnóstico ): Listar o conteúdo para verificar o clone
-    - name: Verificar se a pasta vcpkg existe
+    # Passo 2 (Diagnóstico): Listar o conteúdo para ter certeza absoluta.
+    - name: Verificar se a pasta vcpkg existe na raiz
       run: |
-        echo "Listando o conteúdo do diretório clonado:"
-        ls -R ./rustdesk-src
+        echo "Listando o conteúdo do diretório de trabalho:"
+        ls -R .
       shell: pwsh
 
     # Passo 3: Instalar Rust
@@ -38,10 +38,8 @@ jobs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          ./rustdesk-src/target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('./rustdesk-src/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
     # Passo 5: Preparar o ambiente de compilação do Windows
     - name: Instalar LLVM e ambiente de compilação MSVC
@@ -49,8 +47,7 @@ jobs:
 
     # Passo 6: Instalar as dependências C++ via vcpkg
     - name: Instalar dependências do vcpkg
-      # Agora especificamos o diretório de trabalho explicitamente aqui.
-      working-directory: ./rustdesk-src
+      # Agora, este comando será executado na raiz do projeto, onde 'vcpkg' realmente está.
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
@@ -58,8 +55,6 @@ jobs:
 
     # Passo 7: Compilar o projeto Rust
     - name: Compilar o RustDesk com personalizações
-      # E aqui também.
-      working-directory: ./rustdesk-src
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
@@ -71,4 +66,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: rustdesk-windows-personalizado
-        path: ./rustdesk-src/target/release/rustdesk.exe
+        path: target/release/rustdesk.exe
