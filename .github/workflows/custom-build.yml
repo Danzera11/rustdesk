@@ -8,11 +8,20 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout do código
+    # 1. Checkout do código e dos submódulos (vcpkg, etc.)
+    - name: Checkout do código com submódulos
       uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 
+    # 2. Instalar Rust
+    - name: Instalar Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    # 3. Cache do Cargo para acelerar builds futuros
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
       with:
@@ -24,29 +33,28 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # Passo crucial corrigido:
-    - name: Instalar dependências C++ (libyuv e opus) via vcpkg
-      uses: lukka/run-vcpkg@v11
-      with:
-        # Adicionamos esta linha para dizer ao vcpkg exatamente o que instalar.
-        # O RustDesk precisa de 'libyuv' para vídeo e 'opus' para áudio.
-        vcpkgTriplet: 'x64-windows-static'
-        vcpkgArguments: 'libyuv opus'
+    # 4. Preparar o ambiente de compilação do Windows (MSVC)
+    # Necessário para que o script do vcpkg possa compilar as bibliotecas C++.
+    - name: Instalar ambiente de compilação MSVC
+      uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Instalar Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+    # 5. Instalar dependências C++ (Opus, etc.) da forma correta
+    # Executa o script que está DENTRO do submódulo vcpkg, instalando as libs no lugar certo.
+    - name: Instalar dependências via script do repositório
+      run: |
+        cd vcpkg
+        ./bootstrap-vcpkg.bat -disableMetrics
+      shell: pwsh
 
-    - name: Compilar o RustDesk
+    # 6. Compilar o RustDesk
+    # O Cargo agora encontrará as dependências em './vcpkg/installed/...'
+    - name: Compilar o RustDesk com personalizações
       env:
-        # Esta variável de ambiente é necessária para que o Cargo encontre as libs do vcpkg
-        VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
 
+    # 7. Fazer o upload do executável final
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
