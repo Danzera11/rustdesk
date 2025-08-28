@@ -10,8 +10,15 @@ jobs:
     steps:
     - name: Checkout do código-fonte
       uses: actions/checkout@v4
+      # Manter esta opção é uma boa prática, mas vamos adicionar um passo de verificação.
       with:
         submodules: 'recursive'
+
+    - name: Garantir que os submódulos foram baixados
+      # Este comando força a inicialização e o download de todos os submódulos.
+      # É uma camada extra de segurança para evitar o erro "path not found".
+      run: git submodule update --init --recursive
+      shell: pwsh
 
     - name: Instalar Rust (toolchain stable)
       uses: actions-rs/toolchain@v1
@@ -32,12 +39,11 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    - name: Instalar LLVM (necessário para o ambiente de compilação)
+    - name: Instalar LLVM e ambiente de compilação MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Instalar dependências do vcpkg (Método Corrigido)
-      # Executa o script de bootstrap do vcpkg que já vem com o RustDesk.
-      # Usamos pwsh para consistência e combinamos os comandos.
+    - name: Instalar dependências do vcpkg
+      # Agora que garantimos que a pasta 'vcpkg' existe, este passo funcionará.
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
