@@ -8,20 +8,24 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # 1. Checkout do código e dos submódulos (vcpkg, etc.)
-    - name: Checkout do código com submódulos
+    # 1. Checkout do código principal.
+    - name: Checkout do código
       uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
 
-    # 2. Instalar Rust
+    # 2. Forçar o download dos submódulos (vcpkg, etc.)
+    # Este é o passo crucial que estava falhando silenciosamente antes.
+    - name: Inicializar e atualizar submódulos
+      run: git submodule update --init --recursive
+      shell: pwsh
+
+    # 3. Instalar Rust
     - name: Instalar Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
 
-    # 3. Cache do Cargo para acelerar builds futuros
+    # 4. Cache do Cargo
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
       with:
@@ -33,28 +37,26 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # 4. Preparar o ambiente de compilação do Windows (MSVC)
-    # Necessário para que o script do vcpkg possa compilar as bibliotecas C++.
+    # 5. Preparar ambiente de compilação C++
     - name: Instalar ambiente de compilação MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    # 5. Instalar dependências C++ (Opus, etc.) da forma correta
-    # Executa o script que está DENTRO do submódulo vcpkg, instalando as libs no lugar certo.
+    # 6. Instalar dependências C++ (Opus, etc.) usando o script do repositório
+    # Agora que garantimos que a pasta 'vcpkg' existe, este passo vai funcionar.
     - name: Instalar dependências via script do repositório
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
       shell: pwsh
 
-    # 6. Compilar o RustDesk
-    # O Cargo agora encontrará as dependências em './vcpkg/installed/...'
+    # 7. Compilar o RustDesk
     - name: Compilar o RustDesk com personalizações
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
 
-    # 7. Fazer o upload do executável final
+    # 8. Fazer o upload do executável
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
