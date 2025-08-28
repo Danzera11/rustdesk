@@ -1,21 +1,24 @@
 name: Build Personalizado do RustDesk para Windows
 
 on:
-  workflow_dispatch:
-
-env:
-  # Define o caminho do vcpkg para todos os passos do job
-  VCPKG_ROOT: ${{ runner.temp }}/vcpkg
+  workflow_dispatch: # Permite acionar a build manualmente
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout do código
+    - name: Checkout do código-fonte
       uses: actions/checkout@v4
       with:
+        # 'recursive' é essencial para baixar os submódulos do RustDesk
         submodules: 'recursive'
+
+    - name: Instalar Rust (toolchain stable)
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
 
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
@@ -27,27 +30,24 @@ jobs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
 
-    - name: Instalar e configurar vcpkg
-      uses: lukka/run-vcpkg@v11
-      with:
-        # Instala o vcpkg no diretório que definimos em VCPKG_ROOT
-        vcpkgDirectory: ${{ env.VCPKG_ROOT }}
-        # Especifica um commit estável do vcpkg para evitar surpresas
-        vcpkgGitCommitId: '8f7f44a735903b135e700015c86b89e2b2b13f89'
+    - name: Instalar LLVM (necessário para vcpkg e bindgen)
+      uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Instalar dependências (opus e libyuv)
+    - name: Instalar vcpkg e suas dependências
+      # O RustDesk usa seu próprio script para gerenciar o vcpkg
       run: |
-        ${{ env.VCPKG_ROOT }}/vcpkg.exe install opus:x64-windows libyuv:x64-windows
-      shell: pwsh
+        cd vcpkg
+        ./bootstrap-vcpkg.bat
+      shell: cmd
 
-    - name: Instalar Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-
-    - name: Compilar o RustDesk
+    - name: Compilar o RustDesk com personalizações
+      # Passamos as variáveis de ambiente diretamente para o comando do cargo
+      # Isso garante que o compilador as utilize durante a build
       env:
+        # Seus segredos do GitHub para o servidor e a chave pública
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
