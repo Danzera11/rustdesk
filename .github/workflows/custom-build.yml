@@ -6,60 +6,75 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    # Define o diretório de trabalho padrão para todos os passos deste job.
+    # Isso garante que todos os comandos sejam executados dentro da pasta do nosso código.
+    defaults:
+      run:
+        working-directory: ./rustdesk-src
 
     steps:
-    # Passo 1: Clonar o repositório manualmente (Abordagem mais robusta)
-    # Em vez de usar actions/checkout, clonamos diretamente com a opção --recurse-submodules.
-    # Isso garante que o vcpkg e outras dependências sejam baixados.
-    - name: Clonar repositório e submódulos
+    # Passo 1: Criar um diretório e clonar o código para dentro dele
+    # Isso nos dá controle total sobre onde o código está.
+    - name: Clonar repositório e submódulos em um diretório específico
       run: |
-        git clone --recurse-submodules https://github.com/${{ github.repository }} .
+        mkdir rustdesk-src
+        git clone --recurse-submodules https://github.com/${{ github.repository }} ./rustdesk-src
       shell: pwsh
 
-    # Passo 2: Instalar Rust
-    - name: Instalar Rust (toolchain stable )
+    # Passo 2 (Diagnóstico ): Listar o conteúdo para verificar o clone
+    - name: Verificar se a pasta vcpkg existe
+      run: |
+        echo "Listando o conteúdo do diretório de trabalho:"
+        ls -R
+      shell: pwsh
+
+    # Passo 3: Instalar Rust
+    - name: Instalar Rust (toolchain stable)
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
 
-    # Passo 3: Configurar cache do Cargo (Opcional, mas recomendado)
+    # Passo 4: Configurar cache do Cargo
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
       with:
+        # O path agora precisa refletir nosso diretório de trabalho
         path: |
           ~/.cargo/bin/
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          ./rustdesk-src/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('./rustdesk-src/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    # Passo 4: Preparar o ambiente de compilação do Windows
+    # Passo 5: Preparar o ambiente de compilação do Windows
     - name: Instalar LLVM e ambiente de compilação MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    # Passo 5: Instalar as dependências C++ via vcpkg
+    # Passo 6: Instalar as dependências C++ via vcpkg
     - name: Instalar dependências do vcpkg
-      # Este passo agora deve encontrar a pasta 'vcpkg' sem problemas.
+      # Este passo agora será executado dentro de 'rustdesk-src' por causa do 'defaults'.
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
       shell: pwsh
 
-    # Passo 6: Compilar o projeto Rust
+    # Passo 7: Compilar o projeto Rust
     - name: Compilar o RustDesk com personalizações
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
+      # Este passo também será executado dentro de 'rustdesk-src'.
       run: cargo build --release --verbose
       shell: pwsh
 
-    # Passo 7: Fazer o upload do resultado
+    # Passo 8: Fazer o upload do resultado
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
         name: rustdesk-windows-personalizado
-        path: target/release/rustdesk.exe
+        # O caminho para o artefato agora precisa incluir nosso diretório.
+        path: ./rustdesk-src/target/release/rustdesk.exe
