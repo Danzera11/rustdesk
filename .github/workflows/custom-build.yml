@@ -8,22 +8,13 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # 1. Checkout do código (Sua base, perfeita)
-    - name: Checkout do código com submódulos
-      uses: actions/checkout@v4 # Atualizado para a v4, a mais recente
+    - name: Checkout do código
+      uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 
-    # 2. Instalar Rust (Sua base, perfeita)
-    - name: Instalar Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
-
-    # 3. Cache do Cargo (Sua base, perfeita)
     - name: Configurar cache do Cargo
-      uses: actions/cache@v4 # Atualizado para a v4
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/bin/
@@ -33,28 +24,29 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # 4. Preparar ambiente de compilação C++ (Passo que faltava)
-    # Instala as ferramentas do Visual Studio (compilador C++, LLVM) necessárias para o vcpkg.
-    - name: Instalar LLVM e ambiente de compilação MSVC
-      uses: ilammy/msvc-dev-cmd@v1
+    # Passo crucial corrigido:
+    - name: Instalar dependências C++ (libyuv e opus) via vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        # Adicionamos esta linha para dizer ao vcpkg exatamente o que instalar.
+        # O RustDesk precisa de 'libyuv' para vídeo e 'opus' para áudio.
+        vcpkgTriplet: 'x64-windows-static'
+        vcpkgArguments: 'libyuv opus'
 
-    # 5. Instalar dependências via vcpkg (Passo que faltava)
-    # Executa o script do próprio RustDesk para baixar e compilar as libs C++.
-    - name: Instalar dependências do vcpkg
-      run: |
-        cd vcpkg
-        ./bootstrap-vcpkg.bat -disableMetrics
-      shell: pwsh
+    - name: Instalar Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
 
-    # 6. Compilar o RustDesk (Comando corrigido)
-    # Usamos 'cargo build' para apenas compilar, não executar.
-    - name: Compilar o RustDesk com personalizações
+    - name: Compilar o RustDesk
       env:
+        # Esta variável de ambiente é necessária para que o Cargo encontre as libs do vcpkg
+        VCPKG_ROOT: ${{ env.VCPKG_ROOT }}
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
 
-    # 7. Upload do artefato (Sua base, perfeita)
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
