@@ -8,24 +8,22 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout do código-fonte
-      uses: actions/checkout@v4
-      # Manter esta opção é uma boa prática, mas vamos adicionar um passo de verificação.
-      with:
-        submodules: 'recursive'
-
-    - name: Garantir que os submódulos foram baixados
-      # Este comando força a inicialização e o download de todos os submódulos.
-      # É uma camada extra de segurança para evitar o erro "path not found".
-      run: git submodule update --init --recursive
+    # Passo 1: Clonar o repositório manualmente (Abordagem mais robusta)
+    # Em vez de usar actions/checkout, clonamos diretamente com a opção --recurse-submodules.
+    # Isso garante que o vcpkg e outras dependências sejam baixados.
+    - name: Clonar repositório e submódulos
+      run: |
+        git clone --recurse-submodules https://github.com/${{ github.repository }} .
       shell: pwsh
 
-    - name: Instalar Rust (toolchain stable)
+    # Passo 2: Instalar Rust
+    - name: Instalar Rust (toolchain stable )
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
 
+    # Passo 3: Configurar cache do Cargo (Opcional, mas recomendado)
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
       with:
@@ -39,16 +37,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    # Passo 4: Preparar o ambiente de compilação do Windows
     - name: Instalar LLVM e ambiente de compilação MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
+    # Passo 5: Instalar as dependências C++ via vcpkg
     - name: Instalar dependências do vcpkg
-      # Agora que garantimos que a pasta 'vcpkg' existe, este passo funcionará.
+      # Este passo agora deve encontrar a pasta 'vcpkg' sem problemas.
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
       shell: pwsh
 
+    # Passo 6: Compilar o projeto Rust
     - name: Compilar o RustDesk com personalizações
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
@@ -56,6 +57,7 @@ jobs:
       run: cargo build --release --verbose
       shell: pwsh
 
+    # Passo 7: Fazer o upload do resultado
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
