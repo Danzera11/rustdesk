@@ -8,24 +8,28 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # 1. Checkout do código principal.
-    - name: Checkout do código
+    # Passo 1: Usar a ação de checkout padrão.
+    # Vamos voltar à forma mais simples e confiável, que cria o checkout no diretório raiz.
+    - name: Checkout do código-fonte com submódulos
       uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
 
-    # 2. Forçar o download dos submódulos (vcpkg, etc.)
-    # Este é o passo crucial que estava falhando silenciosamente antes.
-    - name: Inicializar e atualizar submódulos
-      run: git submodule update --init --recursive
+    # Passo 2 (Diagnóstico): Listar o conteúdo para ter certeza absoluta.
+    - name: Verificar se a pasta vcpkg existe na raiz
+      run: |
+        echo "Listando o conteúdo do diretório de trabalho:"
+        ls -R .
       shell: pwsh
 
-    # 3. Instalar Rust
-    - name: Instalar Rust
+    # Passo 3: Instalar Rust
+    - name: Instalar Rust (toolchain stable)
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
 
-    # 4. Cache do Cargo
+    # Passo 4: Configurar cache do Cargo
     - name: Configurar cache do Cargo
       uses: actions/cache@v4
       with:
@@ -37,26 +41,27 @@ jobs:
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    # 5. Preparar ambiente de compilação C++
-    - name: Instalar ambiente de compilação MSVC
+    # Passo 5: Preparar o ambiente de compilação do Windows
+    - name: Instalar LLVM e ambiente de compilação MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    # 6. Instalar dependências C++ (Opus, etc.) usando o script do repositório
-    # Agora que garantimos que a pasta 'vcpkg' existe, este passo vai funcionar.
-    - name: Instalar dependências via script do repositório
+    # Passo 6: Instalar as dependências C++ via vcpkg
+    - name: Instalar dependências do vcpkg
+      # Agora, este comando será executado na raiz do projeto, onde 'vcpkg' realmente está.
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
       shell: pwsh
 
-    # 7. Compilar o RustDesk
+    # Passo 7: Compilar o projeto Rust
     - name: Compilar o RustDesk com personalizações
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
+      shell: pwsh
 
-    # 8. Fazer o upload do executável
+    # Passo 8: Fazer o upload do resultado
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
