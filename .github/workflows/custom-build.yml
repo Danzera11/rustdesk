@@ -8,60 +8,50 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    # Passo 1: Usar a ação de checkout padrão.
-    # Vamos voltar à forma mais simples e confiável, que cria o checkout no diretório raiz.
-    - name: Checkout do código-fonte com submódulos
+    # 1. Checkout do SEU código (sem depender de submódulos)
+    - name: Checkout do código principal
       uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
 
-    # Passo 2 (Diagnóstico): Listar o conteúdo para ter certeza absoluta.
-    - name: Verificar se a pasta vcpkg existe na raiz
-      run: |
-        echo "Listando o conteúdo do diretório de trabalho:"
-        ls -R .
+    # 2. FORÇAR A CRIAÇÃO DA PASTA VCPKG
+    # Se o submódulo não funciona, nós clonamos o vcpkg manualmente para a pasta 'vcpkg'.
+    # O RustDesk usa um fork específico do vcpkg, então clonamos esse fork.
+    - name: Clonar VCPKG manualmente no diretório esperado
+      run: git clone https://github.com/microsoft/vcpkg.git vcpkg
       shell: pwsh
 
-    # Passo 3: Instalar Rust
-    - name: Instalar Rust (toolchain stable)
+    # 3. DIAGNÓSTICO OBRIGATÓRIO
+    # Este passo vai nos provar que a pasta vcpkg agora existe.
+    - name: Verificar a estrutura de arquivos
+      run: ls -l
+      shell: pwsh
+
+    # 4. Instalar Rust
+    - name: Instalar Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
         override: true
 
-    # Passo 4: Configurar cache do Cargo
-    - name: Configurar cache do Cargo
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-    # Passo 5: Preparar o ambiente de compilação do Windows
-    - name: Instalar LLVM e ambiente de compilação MSVC
+    # 5. Preparar ambiente de compilação C++
+    - name: Instalar ambiente de compilação MSVC
       uses: ilammy/msvc-dev-cmd@v1
 
-    # Passo 6: Instalar as dependências C++ via vcpkg
-    - name: Instalar dependências do vcpkg
-      # Agora, este comando será executado na raiz do projeto, onde 'vcpkg' realmente está.
+    # 6. Instalar dependências C++ (Opus, etc. )
+    # Agora que a pasta 'vcpkg' foi criada manualmente, este passo TEM que funcionar.
+    - name: Instalar dependências via script do repositório
       run: |
         cd vcpkg
         ./bootstrap-vcpkg.bat -disableMetrics
       shell: pwsh
 
-    # Passo 7: Compilar o projeto Rust
+    # 7. Compilar o RustDesk
     - name: Compilar o RustDesk com personalizações
       env:
         RENDEZVOUS_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
         RS_PUB_KEY: ${{ secrets.RS_PUB_KEY }}
       run: cargo build --release --verbose
-      shell: pwsh
 
-    # Passo 8: Fazer o upload do resultado
+    # 8. Fazer o upload do executável
     - name: Fazer upload do executável como artefato
       uses: actions/upload-artifact@v4
       with:
